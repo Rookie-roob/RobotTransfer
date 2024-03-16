@@ -133,7 +133,8 @@ void Init()
         park_set.insert(GridLocation{berth[id].x,berth[id].y});
         park_x=berth[id].x;park_y=berth[id].y;
     }
-    park_goal={park_x,park_y+3};
+    park_goal={park_x,park_y+2};
+    f1<<park_x<<" "<<park_y+2<<endl;
     scanf("%d", &boat_capacity);
     char okk[100];
     scanf("%s", okk);
@@ -219,6 +220,8 @@ void a_star_search(GridLocation start,GridLocation goal)
         }
     }
 }
+
+
 std::vector<GridLocation> reconstruct_path(
     GridLocation start, GridLocation goal,
     std::map<GridLocation, GridLocation> came_from
@@ -284,11 +287,12 @@ void process_robot(int zhen)
     }
     else if(robot_status==3)
     {
-        dir = move_robot(zhen);
         if((zhen-from_zhen+1)==path.size())
         {
             robot_status=4;
         } 
+        else
+            dir = move_robot(zhen);    
     }
     else if(robot_status==4)
     {
