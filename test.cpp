@@ -12,6 +12,7 @@ int money, boat_capacity, id;
 char ch[N][N];
 int gds[N][N];
 int zhen;
+int park_item[10]={0};
 
 struct GridLocation {
     int x, y;
@@ -91,8 +92,8 @@ inline int heuristic(GridLocation a, GridLocation b) {
     return std::abs(a.x - b.x) + std::abs(a.y - b.y);
 }
 
-std::map<GridLocation, GridLocation> came_from;
-std::map<GridLocation, int> cost_so_far;
+std::map<GridLocation, GridLocation> came_from[10];
+std::map<GridLocation, int> cost_so_far[10];
 GridLocation park_pos[10];
 
 struct Robot
@@ -134,49 +135,46 @@ struct Item {
     int val;
 };
 struct ItemNode {
-    Item it;
+    int x;
+    int y;
+    int expire_time;
+    int val;
     ItemNode* nextnode;
     ItemNode* prevnode;
+    bool is_chosen;
     ItemNode(){}
-    ItemNode(Item it)
+    ItemNode(int x1,int t1,int et,int v):x(x1),y(t1),expire_time(et),val(v),nextnode(nullptr),prevnode(nullptr),is_chosen(false)
     {
-        this->it=it;
-        this->nextnode=nullptr;
-        this->prevnode=nullptr;
     }
-    ItemNode(ItemNode* nextnode,ItemNode* prevnode)
+    ItemNode(ItemNode* nextnode,ItemNode* prevnode):nextnode(nullptr),prevnode(nullptr),is_chosen(false)
     {
-        this->nextnode=nextnode;
-        this->prevnode=prevnode;
     }
-    ItemNode(Item it,ItemNode* nextnode,ItemNode* prevnode)
+    ItemNode(int x1,int t1,int et,int v,Item it,ItemNode* nn,ItemNode* pn):x(x1),y(t1),expire_time(et),val(v),nextnode(nn),prevnode(pn),is_chosen(false)
     {
-        this->it=it;
-        this->nextnode=nextnode;
-        this->prevnode=prevnode;
     }
 };
 ItemNode* dummyhead;
 void addItem(int zhen,int x,int y,int val)
 {
-    ItemNode* in = new ItemNode(Item{x,y,zhen+1000,val});
+    ItemNode* in = new ItemNode(x,y,zhen+1000,val);
     ItemNode* pn = dummyhead->prevnode;
     pn->nextnode=in;
     in->nextnode=dummyhead;
     dummyhead->prevnode=in;
     in->prevnode=pn;
+    
 }
 void deleteItem(int zhen)
 {
     ItemNode* cur = dummyhead->nextnode;
     ItemNode* pre = dummyhead;
-    while(cur!=dummyhead&&(cur->it).expire_time<=zhen)
+    while(cur!=dummyhead&&cur->expire_time<=zhen)
     {
         ItemNode* ne = cur->nextnode;
         pre->nextnode=ne;
         ne->prevnode=pre;
-        if(item_to_idx.find(GridLocation{(cur->it).x,(cur->it).y})!=item_to_idx.end())
-            item_to_idx.erase(GridLocation{(cur->it).x,(cur->it).y});
+        if(item_to_idx.find(GridLocation{cur->x,cur->y})!=item_to_idx.end())
+            item_to_idx.erase(GridLocation{cur->x,cur->y});
         delete cur;
         cur=ne;
     }
@@ -223,21 +221,19 @@ void Init()
     fflush(stdout);
 }
 
-int item_x;
-int item_y;
-GridLocation item_goal;
 int Input()
 {
     scanf("%d%d", &id, &money);
     int num;
     scanf("%d", &num);
+    
     for(int i = 1; i <= num; i ++)
     {
         int x, y, val;
         scanf("%d%d%d", &x, &y, &val);
         addItem(zhen,x,y,val);
     }
-    item_goal={item_x,item_y};
+    
     for(int i = 0; i < robot_num; i ++)
     {
         int sts;
@@ -273,13 +269,13 @@ struct PriorityQueue {
 
 GridLocation cur_goal;
 
-void a_star_search(GridLocation start,GridLocation goal)
+void a_star_search(int i,GridLocation start,GridLocation goal)
 {
     PriorityQueue<GridLocation, int> frontier;
     frontier.put(start, 0);
 
-    came_from[start] = start;
-    cost_so_far[start] = 0;
+    came_from[i][start] = start;
+    cost_so_far[i][start] = 0;
 
     while (!frontier.empty()) {
         GridLocation current = frontier.get();
@@ -289,13 +285,13 @@ void a_star_search(GridLocation start,GridLocation goal)
         }
 
         for (GridLocation next : grid.neighbors(current)) {
-            int new_cost = cost_so_far[current] + grid.cost(current, next);
-            if (cost_so_far.find(next) == cost_so_far.end()
-                || new_cost < cost_so_far[next]) {
-                cost_so_far[next] = new_cost;
+            int new_cost = cost_so_far[i][current] + grid.cost(current, next);
+            if (cost_so_far[i].find(next) == cost_so_far[i].end()
+                || new_cost < cost_so_far[i][next]) {
+                cost_so_far[i][next] = new_cost;
                 int priority = new_cost + heuristic(next, goal);
                 frontier.put(next, priority);
-                came_from[next] = current;
+                came_from[i][next] = current;
             }
         }
     }
@@ -304,15 +300,16 @@ void a_star_search(GridLocation start,GridLocation goal)
 
 std::vector<GridLocation> reconstruct_path(
     GridLocation start, GridLocation goal,
-    std::map<GridLocation, GridLocation> came_from
+    std::map<GridLocation, GridLocation>& came_from1
 ) {
+        
     std::vector<GridLocation> path;
-    if(came_from.find(goal)==came_from.end())
+    if(came_from1.find(goal)==came_from1.end())
         return path;
     GridLocation current = goal;
     while (current != start) {
         path.push_back(current);
-        current = came_from[current];
+        current = came_from1[current];
     }
     path.push_back(start); // optional
     std::reverse(path.begin(), path.end());
@@ -320,156 +317,155 @@ std::vector<GridLocation> reconstruct_path(
 }
 
 int robot_status[10] = {0};
-std::vector<GridLocation> path;
+vector<vector<GridLocation>> path(10,vector<GridLocation>());
 int from_zhen[10]={0};
-int move_robot(int zhen)
+int move_robot(int i,int zhen)
 {
-    return move_dic[path[zhen-from_zhen+1]-path[zhen-from_zhen]];
+    return move_dic[path[i][zhen-from_zhen[i]+1]-path[i][zhen-from_zhen[i]]];
 }
 int dir[10] = {-1};
-bool if_get = false;
-int end_load;
-int item_num=1;
-int boat_status = 0;
+
+int boat_status[5] = {0};
 bool robot_idle[10];
 
 
-void process_robot(int index,int zhen)
+int to_park[10];
+void process_robot()
 {
-
+    int max_astar = 2;
     for(int i=0;i<10;i++)
     {
         dir[i]=-1;
-        if(robot_status[i]==0)
+        if(robot_status[i]==0||robot_status[i]==4)
         {
+            robot_status[i]=0;
+            if(max_astar<=0)
+                continue;
+            max_astar--;
             bool to_next_item = false;
             do{
-            ItemNode* cur = dummyhead->nextnode;
-            if(cur==dummyhead)
-                break;
-            else
-            {
-                cur_goal=GridLocation{(cur->it).x,(cur->it).y};
-                
-            }
-            came_from[i].clear();
-            cost_so_far[i].clear();
-            GridLocation start_pos = {robot[0].x,robot[0].y};                
-            a_star_search(start_pos,cur_goal);
-            path=reconstruct_path(start_pos, cur_goal, came_from);
-            if(path.size()==0)
-                to_next_item=true;
-            else
-            {
-                from_zhen[i]=zhen;
-                dir[i] = move_robot(zhen);
-                robot_status[i]=1;
-            }
+                to_next_item = false;
+                ItemNode* cur = dummyhead->prevnode;
+                int maxsearch = 20;
+                while(cur!=dummyhead&&cur->is_chosen==true&&maxsearch>0)
+                {
+                    cur=cur->prevnode;
+                    maxsearch--;
+                }
+                if(cur==dummyhead||maxsearch==0)
+                    break;
+                else
+                {
+                    cur_goal=GridLocation{cur->x,cur->y};
+                    cur->is_chosen=true;
+                }
+                came_from[i].clear();
+                cost_so_far[i].clear();
+                GridLocation start_pos = {robot[i].x,robot[i].y};                
+                a_star_search(i,start_pos,cur_goal);
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                if(path[i].size()==0)
+                    to_next_item=true;
+                else
+                {
+                    from_zhen[i]=zhen;
+                    dir[i] = move_robot(i,zhen);
+                    robot_status[i]=1;
+                }
             }while(to_next_item);
         }
         else if(robot_status[i]==1)
         {
-
+            dir[i] = move_robot(i,zhen);
+            if((zhen-from_zhen[i]+2)==path[i].size())
+            {
+                robot_status[i]=2;
+            }
         }
+        else if(robot_status[i]==2)
+        {
+            if(max_astar<=0)
+                continue;
+            max_astar--;
+            bool to_next_item = false;
+            int mv = 0;
+            do {
+                to_next_item = false;
+                cur_goal=park_pos[((zhen+mv)%5)*2];
+                to_park[i]=((zhen+mv)%5)*2;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+                a_star_search(i,start_pos,cur_goal);
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                if(path[i].size()==0)
+                    to_next_item=true;
+                mv++;
+            }while(to_next_item);
+            from_zhen[i]=zhen;
+            dir[i] = move_robot(i,zhen);
+            robot_status[i]=3;
+        }
+        else if(robot_status[i]==3)
+        {
+            dir[i] = move_robot(i,zhen);
+            if((zhen-from_zhen[i]+2)==path[i].size())
+            {
+                robot_status[i]=4;
+                park_item[to_park[i]]++;
+            }
+        }
+
     }
 
 
-    //dir=-1;
-    if(robot_status==0)
-    {
-        cur_goal=item_goal;
-        GridLocation start_pos = {robot[0].x,robot[0].y};
-        came_from.clear();
-        cost_so_far.clear();
-        a_star_search(start_pos,cur_goal);
-        path=reconstruct_path(start_pos, cur_goal, came_from);
-        from_zhen=zhen;
-        dir = move_robot(zhen);
-        robot_status=1;
-    }
-    else if(robot_status==1)
-    {
-        dir = move_robot(zhen);
-        if((zhen-from_zhen+1)==path.size())
-        {
-            robot_status=2;
-            if_get=true;
-        }    
-    }
-    else if(robot_status==2)
-    {
-        cur_goal=park_goal;
-        GridLocation start_pos = {robot[0].x,robot[0].y};
-        came_from.clear();
-        cost_so_far.clear();
-        a_star_search(start_pos,cur_goal);
-        path=reconstruct_path(start_pos, cur_goal, came_from);
-        from_zhen=zhen;
-        dir = move_robot(zhen);
-        robot_status=3;
-    }
-    else if(robot_status==3)
-    {
-        if((zhen-from_zhen+1)==path.size())
-        {
-            robot_status=4;
-        } 
-        else
-            dir = move_robot(zhen);    
-    }
-    else if(robot_status==4)
-    {
-        if(boat_status==2)
-        {
-            end_load=zhen+(item_num-1)/berth[9].loading_speed+1;
-            robot_status=5;
-        }
-    }
-    else if(robot_status==5)
-    {
-        if(zhen==end_load)
-        {
-            robot_status=0;
-        }
-    }
 }
 
-int to_zhen=-1;
-void process_boat(int zhen)
+int to_zhen[5]={-1};
+int finish_upboat[5]={-1};
+bool on_virtual[5]={false};
+void process_boat()
 {
-    if(boat_status==0)
-    {
-        to_zhen = zhen+berth[9].transport_time;
-        boat_status = 1;
-    }
-    else if(boat_status==1)
-    {
-        if(to_zhen==zhen)
+    for(int i=0;i<5;i++) {
+        on_virtual[i]=false;
+        if(boat_status[i]==0)
         {
-            boat_status=2;
+            to_zhen[i] = zhen+berth[i*2].transport_time;
+            boat_status[i] = 1;
+            on_virtual[i]=true;
         }
+        else if(boat_status[i]==1)
+        {
+            if(to_zhen[i]==zhen)
+            {
+                int num = boat_capacity<park_item[i]?boat_capacity:park_item[i];
+                finish_upboat[i]=zhen+(num-1)/(berth[i*2].loading_speed)+1;
+                boat_status[i]=2;
+            }
             
-    }
-    else if(boat_status==2)
-    {
-        if(zhen==end_load)
+        }
+        else if(boat_status[i]==2)
         {
-            boat_status=3;
-            to_zhen=zhen+berth[9].transport_time;
+            if(zhen==finish_upboat[i])
+            {
+                boat_status[i]=3;
+                to_zhen[i]=zhen+berth[i*2].transport_time;
+            }
+        }
+        else if(boat_status[i]==3&&to_zhen[i]==zhen)
+        {
+            to_zhen[i] = zhen+berth[i*2].transport_time;
+            boat_status[i] = 1;
+            on_virtual[i]=true;
         }
     }
-    else if(boat_status==3)
-    {
-        if(to_zhen==zhen)
-        {
-            boat_status=0;
-        }
-    }
+    
 }
 int main()
 {
-    dummyhead = new ItemNode(dummyhead,dummyhead);
-
+    dummyhead = new ItemNode();
+    dummyhead->nextnode=dummyhead;
+    dummyhead->prevnode=dummyhead;
 
 
     f1.open("data.txt",ios::out);
@@ -478,8 +474,41 @@ int main()
     {
         int id = Input();
         deleteItem(zhen);
+        process_boat();
+        process_robot();
         for(int i=0;i<10;i++)
-            process_robot(i,zhen);
+        {
+            if(zhen==1||robot_status[i]==0||robot_status[i]==1)
+            {
+                if(dir[i]!=-1)
+                    printf("move %d %d\n",i,dir[i]);
+            }
+            else if(robot_status[i]==2)
+            {
+                printf("move %d %d\n",i,dir[i]);
+                printf("get %d\n",i);
+            }
+            else if(robot_status[i]==3)
+            {
+                printf("move %d %d\n",i,dir[i]);
+            }
+            else if(robot_status[i]==4)
+            {
+                printf("move %d %d\n",i,dir[i]);
+                printf("pull %d\n",i);
+            }
+        }
+        for(int i=0;i<5;i++)
+        {
+            if(on_virtual[i])
+            {
+                printf("ship %d %d\n",i,i*2);
+            }
+            else if(boat_status[i]==3)
+            {
+                printf("go %d\n",i);
+            }
+        }
         puts("OK");
         fflush(stdout);
     }
