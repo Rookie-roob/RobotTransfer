@@ -332,17 +332,20 @@ bool robot_idle[10];
 int to_park[10];
 void process_robot()
 {
-    int max_astar = 2;
+    int max_astar = 1;
+    if(zhen==327) f1<<"327: "<<endl;
     for(int i=0;i<10;i++)
     {
         dir[i]=-1;
         if(robot_status[i]==0||robot_status[i]==4)
         {
+            if(zhen==327)
+                f1<<i<<": "<<0<<endl;
             robot_status[i]=0;
             if(max_astar<=0)
                 continue;
-            max_astar--;
             bool to_next_item = false;
+            bool astar=false;
             do{
                 to_next_item = false;
                 ItemNode* cur = dummyhead->prevnode;
@@ -363,6 +366,7 @@ void process_robot()
                 cost_so_far[i].clear();
                 GridLocation start_pos = {robot[i].x,robot[i].y};                
                 a_star_search(i,start_pos,cur_goal);
+                astar=true;
                 path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
                 if(path[i].size()==0)
                     to_next_item=true;
@@ -373,9 +377,13 @@ void process_robot()
                     robot_status[i]=1;
                 }
             }while(to_next_item);
+            if(astar)
+                max_astar--;
         }
         else if(robot_status[i]==1)
         {
+            if(zhen==327)
+                f1<<i<<": "<<1<<endl;
             dir[i] = move_robot(i,zhen);
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
@@ -384,11 +392,13 @@ void process_robot()
         }
         else if(robot_status[i]==2)
         {
+            if(zhen==327)
+                f1<<i<<": "<<2<<endl;
             if(max_astar<=0)
                 continue;
-            max_astar--;
             bool to_next_item = false;
             int mv = 0;
+            bool astar=false;
             do {
                 to_next_item = false;
                 cur_goal=park_pos[((zhen+mv)%5)*2];
@@ -397,6 +407,7 @@ void process_robot()
                 came_from[i].clear();
                 cost_so_far[i].clear();
                 a_star_search(i,start_pos,cur_goal);
+                astar=true;
                 path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
                 if(path[i].size()==0)
                     to_next_item=true;
@@ -405,9 +416,13 @@ void process_robot()
             from_zhen[i]=zhen;
             dir[i] = move_robot(i,zhen);
             robot_status[i]=3;
+            if(astar)
+                max_astar--;
         }
         else if(robot_status[i]==3)
         {
+            if(zhen==327)
+                f1<<i<<": "<<3<<endl;
             dir[i] = move_robot(i,zhen);
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
