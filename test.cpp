@@ -17,7 +17,6 @@ int park_item[10]={0};
 struct GridLocation {
     int x, y;
 };
-std::map<GridLocation,int> item_to_idx;
 bool is_park_pos(int x,int y)
 {
     if(x>0&&ch[x-1+1][y+1]=='.')
@@ -31,6 +30,19 @@ bool is_park_pos(int x,int y)
     else
         return false;
 }
+struct Robot
+{
+    int x, y, goods;
+    int status;
+    int mbx, mby;
+    int max_search = 20;
+    int rs = 0;//0:initial    1:not in maze    -1:in maze
+    Robot() {}
+    Robot(int startX, int startY) {
+        x = startX;
+        y = startY;
+    }
+}robot[robot_num + 10];
 struct SquareGrid {
     static std::array<GridLocation, 4> DIRS;
 
@@ -44,16 +56,23 @@ struct SquareGrid {
             && 0 <= id.y && id.y < height;
     }
 
-    bool passable(GridLocation id) const {
-        return ch[id.x+1][id.y+1]!='*'&&ch[id.x+1][id.y+1]!='#'&&ch[id.x+1][id.y+1]!='A';
+    bool passable(int rb_id,GridLocation id) const {
+        bool j =  ch[id.x+1][id.y+1]!='*'&&ch[id.x+1][id.y+1]!='#'&&ch[id.x+1][id.y+1]!='A';
+        if(!j) return false;
+        for(int i=0;i<10;i++)
+        {
+            if(i==rb_id) continue;
+            if(robot[i].x==id.x&&robot[i].y==id.y) return false;
+        }
+        return true;
     }
 
-    std::vector<GridLocation> neighbors(GridLocation id) const {
+    std::vector<GridLocation> neighbors(int rb_id,GridLocation id) const {
         std::vector<GridLocation> results;
 
         for (GridLocation dir : DIRS) {
             GridLocation next{ id.x + dir.x, id.y + dir.y };
-            if (in_bounds(next) && passable(next)) {
+            if (in_bounds(next) && passable(rb_id,next)) {
                 results.push_back(next);
             }
         }
@@ -97,19 +116,7 @@ std::map<GridLocation, int> cost_so_far[10];
 GridLocation park_pos[10];
 
 
-struct Robot
-{
-    int x, y, goods;
-    int status;
-    int mbx, mby;
-    int max_search = 20;
-    int rs = 0;//0:initial    1:not in maze    -1:in maze
-    Robot() {}
-    Robot(int startX, int startY) {
-        x = startX;
-        y = startY;
-    }
-}robot[robot_num + 10];
+
 
 struct Berth
 {
@@ -166,13 +173,11 @@ void deleteItem(int zhen)
 {
     ItemNode* cur = dummyhead->nextnode;
     ItemNode* pre = dummyhead;
-    while(cur!=dummyhead&&cur->expire_time<=zhen)
+    while(cur!=dummyhead&&(cur->expire_time<=zhen||cur->is_chosen==true))
     {
         ItemNode* ne = cur->nextnode;
         pre->nextnode=ne;
         ne->prevnode=pre;
-        if(item_to_idx.find(GridLocation{cur->x,cur->y})!=item_to_idx.end())
-            item_to_idx.erase(GridLocation{cur->x,cur->y});
         delete cur;
         cur=ne;
     }
@@ -291,16 +296,23 @@ bool judge_rb_crash(GridLocation& next,int curstep,int idx)
         if(judge_idx1<path[i].size()&&path[i][judge_idx1]==next) return true;
         if(judge_idx2<path[i].size()&&path[i][judge_idx2]==next) return true;
     }
+
     return false;
 }
 void a_star_search(int i,GridLocation start,GridLocation goal)
 {
     PriorityQueue<pair<GridLocation,int>, int> frontier;
     frontier.put(pair<GridLocation,int>{start,0}, 0);
-
+    came_from[i].clear();
+    cost_so_far[i].clear();
     came_from[i][start] = start;
     cost_so_far[i][start] = 0;
     int cnt=1;
+    if(zhen==5000)
+    {
+        f1<<start.x<<" "<<start.y<<endl;
+        f1<<goal.x<<" "<<goal.y<<endl;
+    }
     while (!frontier.empty()) {
         pair<GridLocation,int> currentpair = frontier.get();
         GridLocation current = currentpair.first;
@@ -310,7 +322,7 @@ void a_star_search(int i,GridLocation start,GridLocation goal)
             break;
         }
 
-        for (GridLocation next : grid.neighbors(current)) {
+        for (GridLocation next : grid.neighbors(i,current)) {
             int new_cost = cost_so_far[i][current] + grid.cost(current, next);
             if (cost_so_far[i].find(next) == cost_so_far[i].end()
                 || new_cost < cost_so_far[i][next]) {
@@ -320,14 +332,21 @@ void a_star_search(int i,GridLocation start,GridLocation goal)
                 int priority = new_cost + heuristic(next, goal);
                 frontier.put({next,curstep+1}, priority);
                 cnt++;
-                if(cnt>600) return;
+                if(cnt>1000) 
+                {   
+                    return;
+                }
                 came_from[i][next] = current;
             }
         }
     }
 }
 
-
+void printpath(std::vector<GridLocation>& path1)
+{
+    for(int i=0;i<path1.size();i++)
+        f1<<path1[i].x<<" "<<path1[i].y<<endl;
+}
 std::vector<GridLocation> reconstruct_path(
     GridLocation start, GridLocation goal,
     std::map<GridLocation, GridLocation>& came_from1
@@ -343,6 +362,8 @@ std::vector<GridLocation> reconstruct_path(
     }
     path.push_back(start); // optional
     std::reverse(path.begin(), path.end());
+    //if(zhen==80)
+        //printpath(path);
     return path;
 }
 
@@ -366,21 +387,36 @@ int my_abs(int a)
 bool judge_rb_park[10][10]={false};
 int to_which_park(int j,Robot& rb,GridLocation* pp)
 {
-    for(int i=0;i<10;i++)
+    for(int t=zhen;t<(zhen+10);t++)
     {
-        if((my_abs(rb.x-pp[i].x)+my_abs(rb.y-pp[i].y))<=90&&judge_rb_park[j][i]==false)
+        int i = t%10;
+        if((my_abs(rb.x-pp[i].x)+my_abs(rb.y-pp[i].y))<=60&&judge_rb_park[j][i]==false)
             return i;
     }
     return j;//random number
 }
+int to_which_park2(int j,Robot& rb,GridLocation* pp)
+{
+    int dis = (my_abs(rb.x-pp[0].x)+my_abs(rb.y-pp[0].y));
+    int index = 0;
+    for(int t=zhen;t<(zhen+10);t++)
+    {
+        int i = t%10;
+        if((my_abs(rb.x-pp[i].x)+my_abs(rb.y-pp[i].y))<dis)
+            index=i;
+    }
+    return index;
+}
 
 int to_park[10];
 map<int,set<uintptr_t>> rb_wall;
+int limited_times[10]={0};
 void process_robot()
 {
     int max_astar = 1;
-    for(int i=0;i<10;i++)
+    for(int q=zhen;q<(zhen+10);q++)
     {
+        int i = q%10;
         if(robot[i].rs==-1)
             continue;
         dir[i]=-1;
@@ -391,7 +427,7 @@ void process_robot()
                 continue;
             ItemNode* cur = dummyhead->prevnode;
             int maxsearch = 20;
-            while(cur!=dummyhead&&maxsearch>0&&(cur->is_chosen==true||((my_abs(cur->x-robot[i].x)+my_abs(cur->y-robot[i].y))>=80)||(rb_wall[i].find((uintptr_t)cur)!=rb_wall[i].end())))
+            while(cur!=dummyhead&&maxsearch>0&&(cur->is_chosen==true||((my_abs(cur->x-robot[i].x)+my_abs(cur->y-robot[i].y))>=70)||(rb_wall[i].find((uintptr_t)cur)!=rb_wall[i].end())))
             {
                 cur=cur->prevnode;
                 maxsearch--;
@@ -402,6 +438,7 @@ void process_robot()
             {
                 cur_goal=GridLocation{cur->x,cur->y};
                 cur->is_chosen=true;
+                deleteNode(cur);
             }
             came_from[i].clear();
             cost_so_far[i].clear();
@@ -427,12 +464,44 @@ void process_robot()
                 robot[i].rs=1;
                 from_zhen[i]=zhen;
                 rb_wall[i].clear();
+                bool jdg = false;
+                for(int m=0;m<10;m++)
+                {
+                    if(m==i) continue;
+                    if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
+                    {
+                        jdg=true;
+                        break;
+                    }
+                }
+                if(jdg)
+                {
+                    path[i].clear();
+                    robot_status[i]=0;
+                    continue;
+                }
                 dir[i] = move_robot(i,zhen);
                 robot_status[i]=1;
             }
         }
         else if(robot_status[i]==1)
         {
+            bool jdg = false;
+            for(int m=0;m<10;m++)
+            {
+                if(m==i) continue;
+                if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
+                {
+                    jdg=true;
+                    break;
+                }
+            }
+            if(jdg)
+            {
+                path[i].clear();
+                robot_status[i]=0;
+                continue;
+            }
             dir[i] = move_robot(i,zhen);
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
@@ -440,26 +509,66 @@ void process_robot()
                 path[i].clear();
             }
         }
-        else if(robot_status[i]==2)
+        else if(robot_status[i]==2||robot_status[i]==5)
         {
+
             robot_status[i]=5;//not going to the park
             if(max_astar<=0)
                 continue;
-            int park_idx = to_which_park(i,robot[i],park_pos);
-            cur_goal=park_pos[park_idx];
-            to_park[i]=park_idx;
-            GridLocation start_pos = {robot[i].x,robot[i].y};
-            came_from[i].clear();
-            cost_so_far[i].clear();
-            a_star_search(i,start_pos,cur_goal);
-            max_astar--;
-            path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
-            if(path[i].size()==0)
+            if(limited_times[i]<8) {
+                int park_idx = to_which_park(i,robot[i],park_pos);
+                cur_goal=park_pos[park_idx];
+                to_park[i]=park_idx;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+            
+                a_star_search(i,start_pos,cur_goal);
+                max_astar--;
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                limited_times[i]++;
+                if(path[i].size()==0)
+                {
+                    judge_rb_park[i][park_idx]=true;
+                    continue;
+                }   
+            }
+            else
             {
-                judge_rb_park[i][park_idx]=true;
-                continue;
+                int park_idx = to_which_park2(i,robot[i],park_pos);
+                cur_goal=park_pos[park_idx];
+                to_park[i]=park_idx;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+            
+                a_star_search(i,start_pos,cur_goal);
+                max_astar--;
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                limited_times[i]++;
+                if(path[i].size()==0)
+                {
+                    continue;
+                }
             }
             from_zhen[i]=zhen;
+            limited_times[i]=0;
+            bool jdg = false;
+            for(int m=0;m<10;m++)
+            {
+                if(m==i) continue;
+                if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
+                {
+                    jdg=true;
+                    break;
+                }
+            }
+            if(jdg)
+            {
+                path[i].clear();
+                robot_status[i]=0;
+                continue;
+            }
             dir[i] = move_robot(i,zhen);
             robot_status[i]=3;
             for(int j=0;j<10;j++)
@@ -467,11 +576,28 @@ void process_robot()
         }
         else if(robot_status[i]==3)
         {
+            bool jdg = false;
+            for(int m=0;m<10;m++)
+            {
+                if(m==i) continue;
+                if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
+                {
+                    jdg=true;
+                    break;
+                }
+            }
+            if(jdg)
+            {
+                path[i].clear();
+                robot_status[i]=5;
+                continue;
+            }
             dir[i] = move_robot(i,zhen);
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
                 robot_status[i]=4;
                 park_item[to_park[i]]++;
+                path[i].clear();
             }
         }
 
@@ -548,17 +674,24 @@ int main()
             }
             else if(robot_status[i]==2)
             {
-                printf("move %d %d\n",i,dir[i]);
-                printf("get %d\n",i);
+                if(dir[i]!=-1)
+                {
+                    printf("move %d %d\n",i,dir[i]);
+                    printf("get %d\n",i);
+                } 
             }
             else if(robot_status[i]==3)
             {
-                printf("move %d %d\n",i,dir[i]);
+                if(dir[i]!=-1)
+                    printf("move %d %d\n",i,dir[i]);
             }
             else if(robot_status[i]==4)
             {
-                printf("move %d %d\n",i,dir[i]);
-                printf("pull %d\n",i);
+                if(dir[i]!=-1)
+                {
+                    printf("move %d %d\n",i,dir[i]);
+                    printf("pull %d\n",i);
+                }
             }
         }
         for(int i=0;i<5;i++)
