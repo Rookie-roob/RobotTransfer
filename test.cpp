@@ -275,17 +275,36 @@ struct PriorityQueue {
 };
 
 GridLocation cur_goal;
+vector<vector<GridLocation>> path(10,vector<GridLocation>());
+int from_zhen[10]={0};
 
+bool judge_rb_crash(GridLocation& next,int curstep,int idx)
+{
+    for(int i=0;i<10;i++)
+    {
+        if(i==idx)
+            continue;
+        if(path[i].size()==0)
+            continue;
+        int judge_idx1 = curstep+zhen-from_zhen[i];
+        int judge_idx2 = curstep+zhen+1-from_zhen[i];
+        if(judge_idx1<path[i].size()&&path[i][judge_idx1]==next) return true;
+        if(judge_idx2<path[i].size()&&path[i][judge_idx2]==next) return true;
+    }
+    return false;
+}
 void a_star_search(int i,GridLocation start,GridLocation goal)
 {
-    PriorityQueue<GridLocation, int> frontier;
-    frontier.put(start, 0);
+    PriorityQueue<pair<GridLocation,int>, int> frontier;
+    frontier.put(pair<GridLocation,int>{start,0}, 0);
 
     came_from[i][start] = start;
     cost_so_far[i][start] = 0;
     int cnt=1;
     while (!frontier.empty()) {
-        GridLocation current = frontier.get();
+        pair<GridLocation,int> currentpair = frontier.get();
+        GridLocation current = currentpair.first;
+        int curstep = currentpair.second;
 
         if (current == goal) {
             break;
@@ -295,9 +314,11 @@ void a_star_search(int i,GridLocation start,GridLocation goal)
             int new_cost = cost_so_far[i][current] + grid.cost(current, next);
             if (cost_so_far[i].find(next) == cost_so_far[i].end()
                 || new_cost < cost_so_far[i][next]) {
+                if(judge_rb_crash(next,curstep,i))
+                    continue;
                 cost_so_far[i][next] = new_cost;
                 int priority = new_cost + heuristic(next, goal);
-                frontier.put(next, priority);
+                frontier.put({next,curstep+1}, priority);
                 cnt++;
                 if(cnt>600) return;
                 came_from[i][next] = current;
@@ -326,8 +347,6 @@ std::vector<GridLocation> reconstruct_path(
 }
 
 int robot_status[10] = {0};
-vector<vector<GridLocation>> path(10,vector<GridLocation>());
-int from_zhen[10]={0};
 int move_robot(int i,int zhen)
 {
     return move_dic[path[i][zhen-from_zhen[i]+1]-path[i][zhen-from_zhen[i]]];
@@ -418,10 +437,12 @@ void process_robot()
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
                 robot_status[i]=2;
+                path[i].clear();
             }
         }
         else if(robot_status[i]==2)
         {
+            robot_status[i]=5;//not going to the park
             if(max_astar<=0)
                 continue;
             int park_idx = to_which_park(i,robot[i],park_pos);
