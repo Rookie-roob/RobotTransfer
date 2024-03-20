@@ -369,15 +369,18 @@ int Input()
         scanf("%d%d%d%d", &robot[i].goods, &robot[i].x, &robot[i].y, &sts);
         if(in_recover[i]==false&&sts==0){
             in_recover[i]=true;
-            if(robot_status[i]==0||robot_status[i]==1)
+            if(robot[i].goods==0)
             {
                 robot_status[i]=10;
-                recover_zhen[i]=zhen+20;
+                recover_zhen[i]=zhen+18;
             }
-            else if(robot_status[i]==2||robot_status[i]==3||robot_status[i]==5)
+            else if(robot[i].goods==1)
             {
                 robot_status[i]=11;
-                recover_zhen[i]=zhen+20;
+                if(ch[robot[i].x+1][robot[i].y+1]!='B')
+                    recover_zhen[i]=zhen+18;
+                else 
+                    recover_zhen[i]=zhen+19;
             }
         }
     }
@@ -498,7 +501,6 @@ int move_robot(int i,int zhen)
 int dir[10] = {-1};
 
 int boat_status[5] = {0};
-bool robot_idle[10];
 
 
 
@@ -789,9 +791,18 @@ void process_robot()
         {
             if(zhen==recover_zhen[i])
             {
-                robot_status[i]=5;
-                in_recover[i]=false;
+                if(ch[robot[i].x+1][robot[i].y+1]!='B')
+                {
+                    robot_status[i]=5;
+                    in_recover[i]=false;
+                }
+                else
+                {
+                    robot_status[i]=4;dir[i]=4;
+                    in_recover[i]=false;
+                }
             }
+            
         }
     }
 
