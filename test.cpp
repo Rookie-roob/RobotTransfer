@@ -13,6 +13,8 @@ char ch[N][N];
 int gds[N][N];
 int zhen;
 int park_item[10]={0};
+bool in_recover[10]={false};
+int robot_status[10] = {0};
 
 struct GridLocation {
     int x, y;
@@ -29,6 +31,10 @@ bool is_park_pos(int x,int y)
         return true;
     else
         return false;
+}
+int my_abs(int a)
+{
+    return a>=0?a:-a;
 }
 struct Robot
 {
@@ -114,7 +120,8 @@ inline int heuristic(GridLocation a, GridLocation b) {
 std::map<GridLocation, GridLocation> came_from[10];
 std::map<GridLocation, int> cost_so_far[10];
 GridLocation park_pos[10];
-
+GridLocation park_pos2[10];
+GridLocation park_pos3[10];
 
 
 
@@ -159,13 +166,20 @@ struct ItemNode {
     }
 };
 ItemNode* dummyhead;
+ItemNode* park_dummyhead[10];
 void addItem(int zhen,int x,int y,int val)
 {
     ItemNode* in = new ItemNode(x,y,zhen+1000,val);
     ItemNode* pn = dummyhead->prevnode;
+    ItemNode* cur = dummyhead;
+    while(pn!=dummyhead&&pn->val>val)
+    {
+        pn=pn->prevnode;
+        cur=cur->prevnode;
+    }
     pn->nextnode=in;
-    in->nextnode=dummyhead;
-    dummyhead->prevnode=in;
+    in->nextnode=cur;
+    cur->prevnode=in;
     in->prevnode=pn;
     
 }
@@ -225,6 +239,98 @@ void Init()
         {
             park_pos[i]=GridLocation{berth[id].x,berth[id].y+3};
         }
+
+
+        if(is_park_pos(berth[id].x,berth[id].y)&&(park_pos[i].x!=berth[id].x||park_pos[i].y!=berth[id].y))
+        {
+            park_pos2[i]=GridLocation{berth[id].x,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y+3)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+3,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+3,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+3)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+1)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+1)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x,berth[id].y+1};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+2)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+2)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+3,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y+1)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y+1)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+3,berth[id].y+1};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y+2)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y+2)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+3,berth[id].y+2};
+        }
+        else if(is_park_pos(berth[id].x+1,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x+1)||park_pos[i].y!=(berth[id].y+3)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+1,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x+2,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x+2)||park_pos[i].y!=(berth[id].y+3)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+2,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x+1,berth[id].y)&&(park_pos[i].x!=(berth[id].x+1)||park_pos[i].y!=(berth[id].y)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+1,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x+2,berth[id].y)&&(park_pos[i].x!=(berth[id].x+2)||park_pos[i].y!=(berth[id].y)))
+        {
+            park_pos2[i]=GridLocation{berth[id].x+2,berth[id].y};
+        }
+
+
+        if(is_park_pos(berth[id].x+3,berth[id].y)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y))&&(park_pos2[i].x!=(berth[id].x+3)||park_pos2[i].y!=(berth[id].y)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+3,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+3))&&(park_pos2[i].x!=(berth[id].x)||park_pos2[i].y!=(berth[id].y+3)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+1)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+1))&&(park_pos2[i].x!=(berth[id].x)||park_pos2[i].y!=(berth[id].y+1)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x,berth[id].y+1};
+        }
+        else if(is_park_pos(berth[id].x,berth[id].y+2)&&(park_pos[i].x!=(berth[id].x)||park_pos[i].y!=(berth[id].y+2))&&(park_pos2[i].x!=(berth[id].x)||park_pos2[i].y!=(berth[id].y+2)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+3,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y+1)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y+1))&&(park_pos2[i].x!=(berth[id].x+3)||park_pos2[i].y!=(berth[id].y+1)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+3,berth[id].y+1};
+        }
+        else if(is_park_pos(berth[id].x+3,berth[id].y+2)&&(park_pos[i].x!=(berth[id].x+3)||park_pos[i].y!=(berth[id].y+2))&&(park_pos2[i].x!=(berth[id].x+3)||park_pos2[i].y!=(berth[id].y+2)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+3,berth[id].y+2};
+        }
+        else if(is_park_pos(berth[id].x+1,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x+1)||park_pos[i].y!=(berth[id].y+3))&&(park_pos2[i].x!=(berth[id].x+1)||park_pos2[i].y!=(berth[id].y+3)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+1,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x+2,berth[id].y+3)&&(park_pos[i].x!=(berth[id].x+2)||park_pos[i].y!=(berth[id].y+3))&&(park_pos2[i].x!=(berth[id].x+2)||park_pos2[i].y!=(berth[id].y+3)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+2,berth[id].y+3};
+        }
+        else if(is_park_pos(berth[id].x+1,berth[id].y)&&(park_pos[i].x!=(berth[id].x+1)||park_pos[i].y!=(berth[id].y))&&(park_pos2[i].x!=(berth[id].x+1)||park_pos2[i].y!=(berth[id].y)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+1,berth[id].y};
+        }
+        else if(is_park_pos(berth[id].x+2,berth[id].y)&&(park_pos[i].x!=(berth[id].x+2)||park_pos[i].y!=(berth[id].y))&&(park_pos2[i].x!=(berth[id].x+2)||park_pos2[i].y!=(berth[id].y)))
+        {
+            park_pos3[i]=GridLocation{berth[id].x+2,berth[id].y};
+        }
     }
     scanf("%d", &boat_capacity);
     char okk[100];
@@ -233,6 +339,16 @@ void Init()
     fflush(stdout);
 }
 
+bool canAddItem(int x,int y)
+{
+    for(int i=0;i<10;i++)
+    {
+        if((my_abs(x-park_pos[i].x)+my_abs(y-park_pos[i].y))<=60)
+            return true;
+    }
+    return false;
+}
+int recover_zhen[10]={0};
 int Input()
 {
     scanf("%d%d", &id, &money);
@@ -243,13 +359,27 @@ int Input()
     {
         int x, y, val;
         scanf("%d%d%d", &x, &y, &val);
-        addItem(zhen,x,y,val);
+        if(canAddItem(x,y))
+            addItem(zhen,x,y,val);
     }
     
     for(int i = 0; i < robot_num; i ++)
     {
         int sts;
         scanf("%d%d%d%d", &robot[i].goods, &robot[i].x, &robot[i].y, &sts);
+        if(in_recover[i]==false&&sts==0){
+            in_recover[i]=true;
+            if(robot_status[i]==0||robot_status[i]==1)
+            {
+                robot_status[i]=10;
+                recover_zhen[i]=zhen+20;
+            }
+            else if(robot_status[i]==2||robot_status[i]==3||robot_status[i]==5)
+            {
+                robot_status[i]=11;
+                recover_zhen[i]=zhen+20;
+            }
+        }
     }
     for(int i = 0; i < 5; i ++)
         scanf("%d%d\n", &boat[i].status, &boat[i].pos);
@@ -299,20 +429,18 @@ bool judge_rb_crash(GridLocation& next,int curstep,int idx)
 
     return false;
 }
+int cnt=1;
 void a_star_search(int i,GridLocation start,GridLocation goal)
 {
+    
     PriorityQueue<pair<GridLocation,int>, int> frontier;
     frontier.put(pair<GridLocation,int>{start,0}, 0);
     came_from[i].clear();
     cost_so_far[i].clear();
     came_from[i][start] = start;
     cost_so_far[i][start] = 0;
-    int cnt=1;
-    if(zhen==5000)
-    {
-        f1<<start.x<<" "<<start.y<<endl;
-        f1<<goal.x<<" "<<goal.y<<endl;
-    }
+    if(cnt>600) return;
+    
     while (!frontier.empty()) {
         pair<GridLocation,int> currentpair = frontier.get();
         GridLocation current = currentpair.first;
@@ -332,7 +460,7 @@ void a_star_search(int i,GridLocation start,GridLocation goal)
                 int priority = new_cost + heuristic(next, goal);
                 frontier.put({next,curstep+1}, priority);
                 cnt++;
-                if(cnt>1000) 
+                if(cnt>600) 
                 {   
                     return;
                 }
@@ -342,11 +470,6 @@ void a_star_search(int i,GridLocation start,GridLocation goal)
     }
 }
 
-void printpath(std::vector<GridLocation>& path1)
-{
-    for(int i=0;i<path1.size();i++)
-        f1<<path1[i].x<<" "<<path1[i].y<<endl;
-}
 std::vector<GridLocation> reconstruct_path(
     GridLocation start, GridLocation goal,
     std::map<GridLocation, GridLocation>& came_from1
@@ -367,7 +490,7 @@ std::vector<GridLocation> reconstruct_path(
     return path;
 }
 
-int robot_status[10] = {0};
+
 int move_robot(int i,int zhen)
 {
     return move_dic[path[i][zhen-from_zhen[i]+1]-path[i][zhen-from_zhen[i]]];
@@ -380,10 +503,7 @@ bool robot_idle[10];
 
 
 
-int my_abs(int a)
-{
-    return a>=0?a:-a;
-}
+
 bool judge_rb_park[10][10]={false};
 int to_which_park(int j,Robot& rb,GridLocation* pp)
 {
@@ -411,9 +531,18 @@ int to_which_park2(int j,Robot& rb,GridLocation* pp)
 int to_park[10];
 map<int,set<uintptr_t>> rb_wall;
 int limited_times[10]={0};
+bool is_already_park(int x,int y)
+{
+    if(ch[x+1][y+1]!='B') return false;
+    if(x>0&&ch[x-1+1][y+1]=='.') return true;
+    if(x<199&&ch[x+1+1][y+1]=='.') return true;
+    if(y>0&&ch[x+1][y-1+1]=='.') return true;
+    if(y<199&&ch[x+1][y+1+1]=='.') return true;
+    return false;
+}
 void process_robot()
 {
-    int max_astar = 1;
+    int max_astar = 3;
     for(int q=zhen;q<(zhen+10);q++)
     {
         int i = q%10;
@@ -426,7 +555,7 @@ void process_robot()
             if(max_astar<=0)
                 continue;
             ItemNode* cur = dummyhead->prevnode;
-            int maxsearch = 20;
+            int maxsearch = 30;
             while(cur!=dummyhead&&maxsearch>0&&(cur->is_chosen==true||((my_abs(cur->x-robot[i].x)+my_abs(cur->y-robot[i].y))>=70)||(rb_wall[i].find((uintptr_t)cur)!=rb_wall[i].end())))
             {
                 cur=cur->prevnode;
@@ -515,26 +644,7 @@ void process_robot()
             robot_status[i]=5;//not going to the park
             if(max_astar<=0)
                 continue;
-            if(limited_times[i]<8) {
-                int park_idx = to_which_park(i,robot[i],park_pos);
-                cur_goal=park_pos[park_idx];
-                to_park[i]=park_idx;
-                GridLocation start_pos = {robot[i].x,robot[i].y};
-                came_from[i].clear();
-                cost_so_far[i].clear();
-            
-                a_star_search(i,start_pos,cur_goal);
-                max_astar--;
-                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
-                limited_times[i]++;
-                if(path[i].size()==0)
-                {
-                    judge_rb_park[i][park_idx]=true;
-                    continue;
-                }   
-            }
-            else
-            {
+            if((limited_times[i]%4)==0) {
                 int park_idx = to_which_park2(i,robot[i],park_pos);
                 cur_goal=park_pos[park_idx];
                 to_park[i]=park_idx;
@@ -549,33 +659,69 @@ void process_robot()
                 if(path[i].size()==0)
                 {
                     continue;
+                }   
+            }
+            else if((limited_times[i]%4)==1)
+            {
+                int park_idx = to_which_park2(i,robot[i],park_pos2);
+                cur_goal=park_pos2[park_idx];
+                to_park[i]=park_idx;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+            
+                a_star_search(i,start_pos,cur_goal);
+                max_astar--;
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                limited_times[i]++;
+                if(path[i].size()==0)
+                {
+                    continue;
+                }  
+            }
+            else if((limited_times[i]%4)==2)
+            {
+                int park_idx = to_which_park2(i,robot[i],park_pos3);
+                cur_goal=park_pos3[park_idx];
+                to_park[i]=park_idx;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+            
+                a_star_search(i,start_pos,cur_goal);
+                max_astar--;
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                limited_times[i]++;
+                if(path[i].size()==0)
+                {
+                    
+                    continue;
+                } 
+            }
+            else
+            {
+                if((limited_times[i]%12)==11)
+                {
+                    for(int j=0;j<10;j++)
+                        judge_rb_park[i][j]=false;
+                }
+                int park_idx = to_which_park(i,robot[i],park_pos);
+                cur_goal=park_pos[park_idx];
+                to_park[i]=park_idx;
+                GridLocation start_pos = {robot[i].x,robot[i].y};
+                came_from[i].clear();
+                cost_so_far[i].clear();
+                a_star_search(i,start_pos,cur_goal);
+                max_astar--;
+                path[i]=reconstruct_path(start_pos, cur_goal, came_from[i]);
+                limited_times[i]++;
+                if(path[i].size()==0)
+                {
+                    judge_rb_park[i][park_idx]=true;
+                    continue;
                 }
             }
             from_zhen[i]=zhen;
-            limited_times[i]=0;
-            bool jdg = false;
-            for(int m=0;m<10;m++)
-            {
-                if(m==i) continue;
-                if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
-                {
-                    jdg=true;
-                    break;
-                }
-            }
-            if(jdg)
-            {
-                path[i].clear();
-                robot_status[i]=0;
-                continue;
-            }
-            dir[i] = move_robot(i,zhen);
-            robot_status[i]=3;
-            for(int j=0;j<10;j++)
-                judge_rb_park[i][j]=false;
-        }
-        else if(robot_status[i]==3)
-        {
             bool jdg = false;
             for(int m=0;m<10;m++)
             {
@@ -593,6 +739,37 @@ void process_robot()
                 continue;
             }
             dir[i] = move_robot(i,zhen);
+            robot_status[i]=3;
+        }
+        else if(robot_status[i]==3)
+        {
+            
+            bool jdg = false;
+            for(int m=0;m<10;m++)
+            {
+                if(m==i) continue;
+                if(path[i][zhen-from_zhen[i]+1]==GridLocation{robot[m].x,robot[m].y})
+                {
+                    jdg=true;
+                    break;
+                }
+            }
+            if(jdg)
+            {
+                
+                if(is_already_park(robot[i].x,robot[i].y))
+                {
+                    robot_status[i]=4;
+                    park_item[to_park[i]]++;
+                    path[i].clear();
+                    dir[i]=4;
+                    continue;
+                }
+                path[i].clear();
+                robot_status[i]=5;
+                continue;
+            }
+            dir[i] = move_robot(i,zhen);
             if((zhen-from_zhen[i]+2)==path[i].size())
             {
                 robot_status[i]=4;
@@ -600,7 +777,22 @@ void process_robot()
                 path[i].clear();
             }
         }
-
+        else if(robot_status[i]==10)
+        {
+            if(zhen==recover_zhen[i])
+            {
+                robot_status[i]=4;
+                in_recover[i]=false;
+            }
+        }
+        else if(robot_status[i]==11)
+        {
+            if(zhen==recover_zhen[i])
+            {
+                robot_status[i]=5;
+                in_recover[i]=false;
+            }
+        }
     }
 
 
@@ -662,6 +854,7 @@ int main()
     {
         int id = Input();
         deleteItem(zhen);
+        cnt=1;
         process_boat();
         process_robot();
         for(int i=0;i<10;i++)
@@ -687,7 +880,11 @@ int main()
             }
             else if(robot_status[i]==4)
             {
-                if(dir[i]!=-1)
+                if(dir[i]==4)
+                {
+                    printf("pull %d\n",i);
+                }
+                else if(dir[i]!=-1)
                 {
                     printf("move %d %d\n",i,dir[i]);
                     printf("pull %d\n",i);
@@ -711,5 +908,4 @@ int main()
     f1.close();
     return 0;
 }
-
 
